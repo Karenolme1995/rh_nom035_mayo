@@ -1,12 +1,21 @@
 import 'dart:html' as html;
+import 'dart:typed_data';
 
-Future<void> exportCsv(String filename, String csvContent) async {
-  final blob = html.Blob([csvContent], 'text/csv;charset=utf-8;');
+Future<void> exportCsv({
+  required String filename,
+  required Uint8List bytes,
+  required String mimeType,
+}) async {
+  final blob = html.Blob([bytes], mimeType);
   final url = html.Url.createObjectUrlFromBlob(blob);
 
-  html.AnchorElement(href: url)
+  final anchor = html.AnchorElement(href: url)
     ..setAttribute('download', filename)
-    ..click();
+    ..style.display = 'none';
+
+  html.document.body?.children.add(anchor);
+  anchor.click();
+  anchor.remove();
 
   html.Url.revokeObjectUrl(url);
 }

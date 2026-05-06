@@ -1,24 +1,48 @@
-from typing import Optional
 from fastapi import APIRouter, Depends
-
-# ⚠️ Ajusta estos imports a tu proyecto real
 from app.dependencies.auth import get_current_user
 from app.core.db import get_db
+from datetime import date
 
-router = APIRouter()
+router = APIRouter(prefix="/birthdays", tags=["Birthdays"])
 
-@router.get("/users/birthdays/today")
-def birthdays_today(plant: Optional[str] = None, db=Depends(get_db), user=Depends(get_current_user)):
-    query = """
-        SELECT id, name, position, avatar, plant, birthday
-        FROM users
-        WHERE active = 1
-          AND MONTH(birthday) = MONTH(CURDATE())
-          AND DAY(birthday) = DAY(CURDATE())
-          AND (%s IS NULL OR plant = %s)
-        ORDER BY name ASC
-    """
+@router.get("/today")
+def birthdays_today(db=Depends(get_db), _user=Depends(get_current_user)):
+    today = date.today()
     cur = db.cursor(dictionary=True)
-    cur.execute(query, (plant, plant))
-    rows = cur.fetchall()
-    return {"ok": True, "items": rows}
+    try:
+        cur.execute("""
+            SELECT id, name, position, avatar, birthday
+            FROM users
+            WHERE COALESCE(active,1)=1
+              AND birthday IS NOT NULL
+              AND MONTH(birthday)=%s
+              AND DAY(birthday)=%s
+            ORDER BY name
+        """, (today.month, today.day))
+        return cur.fetchall()
+    finally:
+        cur.close()
+
+#-----------------------------------------------------------------#
+@router.get("/month")
+def birthdays_current_month(db=Depends(get_db), current_user=Depends(get_current_user)):
+    today = date.today()
+    month = today.month
+
+    with db.cursor(dictionary=True) as cur:
+        cur.execute("""
+            SELECT
+              id,
+              name,
+              position,
+              avatar,
+              birthday
+            FROM users
+            WHERE COALESCE(active,1)=1
+              AND birthday IS NOT NULL
+              AND MONTH(birthday) = %s
+            ORDER BY DAY(birthday), name
+        """, (month,))
+        rows = cur.fetchall()
+
+    return rows

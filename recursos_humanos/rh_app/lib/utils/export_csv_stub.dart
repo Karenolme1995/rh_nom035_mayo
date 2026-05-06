@@ -1,4 +1,9 @@
-// lib/utils/export_csv_stub.dart
-Future<void> exportCsv(String filename, String csvContent) async {
-  throw UnsupportedError('Export CSV solo está habilitado en Web por ahora.');
+import 'dart:typed_data';
+
+Future<void> exportCsv({
+  required String filename,
+  required Uint8List bytes,
+  required String mimeType,
+}) async {
+  throw UnsupportedError('Export no soportado en esta plataforma.');
 }

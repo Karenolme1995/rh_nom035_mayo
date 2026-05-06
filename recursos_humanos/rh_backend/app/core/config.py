@@ -1,9 +1,12 @@
+#app/core/config.py
 from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parents[2]   # ajusta si tu estructura cambia
 ENV_PATH = BASE_DIR / ".env"
+
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -26,6 +29,25 @@ class Settings(BaseSettings):
 
     redis_host: str = Field(default="127.0.0.1", alias="REDIS_HOST")
     redis_port: int = Field(default=6379, alias="REDIS_PORT")
+    
+    # ========================
+    # EMAIL (SMTP)
+    # ========================
+    smtp_host: str = Field(default="", alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_user: str = Field(default="", alias="SMTP_USER")
+    smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
+    smtp_from: str = Field(default="", alias="SMTP_FROM")
+
+    # ========================
+    # SMS (TWILIO)
+    # ========================
+    twilio_account_sid: str = Field(default="", alias="TWILIO_ACCOUNT_SID")
+    twilio_auth_token: str = Field(default="", alias="TWILIO_AUTH_TOKEN")
+    twilio_phone_number: str = Field(default="", alias="TWILIO_PHONE_NUMBER")
+    
+    
+    
 
 settings = Settings()
 

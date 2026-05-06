@@ -1,3 +1,4 @@
+# app/core/db.py
 import mysql.connector
 from mysql.connector import Error
 from app.core.config import settings
@@ -5,10 +6,11 @@ from app.core.config import settings
 def get_db():
     try:
         connection = mysql.connector.connect(
-            host="mysql.aom-proyectos.com",
-            user="karen723434236",
-            password="karen828343!12!",
-            database="aomproyectosbase",
+            host=settings.mysql_host,
+            port=settings.mysql_port,
+            user=settings.mysql_user,
+            password=settings.mysql_password,
+            database=settings.mysql_db,
             charset="utf8mb4",
             use_unicode=True,
         )
@@ -16,6 +18,3 @@ def get_db():
     except Error as e:
         print("Error MySQL:", e)
         raise
-
-
-

@@ -1,5 +1,5 @@
+from typing import Optional, List
 from pydantic import BaseModel
-from typing import Optional
 
 class NoticeCreate(BaseModel):
     title: str
@@ -12,6 +12,7 @@ class NoticeUpdate(BaseModel):
     body: Optional[str] = None
     plant: Optional[str] = None
     active: Optional[bool] = None
+    area_ids: Optional[List[int]] = None
 
 class NoticeOut(BaseModel):
     id: int

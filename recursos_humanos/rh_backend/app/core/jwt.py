@@ -1,3 +1,4 @@
+#app/core/jwt.py
 from datetime import datetime, timedelta
 from jose import jwt
 from app.core.config import settings
@@ -6,7 +7,7 @@ def create_access_token(data: dict, expires_minutes: int | None = None) -> str:
     to_encode = data.copy()
 
     minutes = expires_minutes if expires_minutes is not None else settings.access_token_expire_minutes
-    expire = datetime.utcnow() + timedelta(minutes=minutes)
+    expire = datetime.utcnow() + timedelta(days=365)
     to_encode.update({"exp": expire})
 
     # set sub si no viene
@@ -20,3 +21,5 @@ def create_access_token(data: dict, expires_minutes: int | None = None) -> str:
 
 def decode_token(token: str) -> dict:
     return jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+
+

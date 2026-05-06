@@ -1,4 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+# app/api/v1/user.py
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from pathlib import Path
+import uuid
+
 from app.dependencies.auth import get_current_user
 from app.core.db import get_db
 from app.core.security import hash_password
@@ -11,6 +15,7 @@ router = APIRouter(
     dependencies=[Depends(require_role(1, 2))]
 )
 
+
 @router.get("/")
 def list_users(db=Depends(get_db), _user=Depends(get_current_user)):
     cur = db.cursor(dictionary=True)
@@ -21,10 +26,10 @@ def list_users(db=Depends(get_db), _user=Depends(get_current_user)):
                 employee_number,
                 name,
                 email,
-                COALESCE(role_id, 3)      AS role_id,
+                role_id,
                 area,
                 position,
-                COALESCE(active, 1)       AS active,
+                COALESCE(active, 1) AS active,
                 entry_date,
                 avatar,
                 plant,
@@ -37,6 +42,7 @@ def list_users(db=Depends(get_db), _user=Depends(get_current_user)):
         return cur.fetchall()
     finally:
         cur.close()
+
 
 @router.post("/")
 def create_user(user: UserCreate, db=Depends(get_db), _user=Depends(get_current_user)):
@@ -69,6 +75,7 @@ def create_user(user: UserCreate, db=Depends(get_db), _user=Depends(get_current_
         return {"message": "Usuario creado correctamente"}
     finally:
         cur.close()
+
 
 @router.put("/{user_id}")
 def update_user(user_id: int, data: UserUpdate, db=Depends(get_db), _user=Depends(get_current_user)):
@@ -114,21 +121,98 @@ def update_user(user_id: int, data: UserUpdate, db=Depends(get_db), _user=Depend
     finally:
         cur.close()
 
+
 @router.delete("/{user_id}")
-def deactivate_user(user_id: int, db=Depends(get_db), _user=Depends(get_current_user)):
-    """
-    IMPORTANTE:
-    Esto NO borra, solo desactiva (active=0).
-    Si quieres borrado real, dime y lo cambio a DELETE FROM users.
-    """
+def delete_user(user_id: int, db=Depends(get_db), _user=Depends(get_current_user)):
     cur = db.cursor()
     try:
-        cur.execute("UPDATE users SET active=0 WHERE id=%s", (user_id,))
+        cur.execute("DELETE FROM users WHERE id=%s", (user_id,))
         db.commit()
 
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-        return {"message": "Usuario desactivado"}
+        return {"message": "Usuario eliminado"}
     finally:
         cur.close()
+
+
+@router.post("/{user_id}/avatar")
+def upload_user_avatar(
+    user_id: int,
+    file: UploadFile = File(...),
+    db=Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    filename = (file.filename or "").lower().strip()
+    ct = (file.content_type or "").lower().strip()
+    ext = Path(filename).suffix.lower()
+
+    allowed = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".jfif", ".heic", ".heif"}
+
+    if ext == "":
+        if "png" in ct:
+            ext = ".png"
+        elif "webp" in ct:
+            ext = ".webp"
+        elif "gif" in ct:
+            ext = ".gif"
+        else:
+            ext = ".jpg"
+
+    if (ext not in allowed) and (not ct.startswith("image/")):
+        raise HTTPException(status_code=400, detail="Solo se permiten archivos de imagen.")
+
+    cur = db.cursor(dictionary=True)
+    try:
+        cur.execute("SELECT id, avatar FROM users WHERE id=%s", (user_id,))
+        row = cur.fetchone()
+    finally:
+        cur.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    old_avatar = row.get("avatar")
+
+    # rh_backend/uploads/avatars
+    base_dir = Path(__file__).resolve().parents[3] / "uploads" / "avatars"
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    new_name = f"{user_id}_{uuid.uuid4().hex}{ext}"
+    out_path = base_dir / new_name
+
+    with out_path.open("wb") as f:
+        while True:
+            chunk = file.file.read(1024 * 1024)
+            if not chunk:
+                break
+            f.write(chunk)
+
+    public_path = f"/uploads/avatars/{new_name}"
+
+    cur = db.cursor()
+    try:
+        cur.execute(
+            "UPDATE users SET avatar=%s WHERE id=%s",
+            (public_path, user_id),
+        )
+        db.commit()
+    finally:
+        cur.close()
+
+    try:
+        if old_avatar:
+            old_avatar_clean = old_avatar.split("?")[0].strip()
+            if old_avatar_clean.startswith("/uploads/avatars/"):
+                old_name = Path(old_avatar_clean).name
+                old_path = base_dir / old_name
+                if old_path.exists() and old_path.is_file() and old_path != out_path:
+                    old_path.unlink()
+    except Exception as e:
+        print(f"No se pudo borrar avatar anterior del usuario {user_id}: {e}")
+
+    return {
+        "avatar_url": public_path,
+        "avatar": public_path,
+    }

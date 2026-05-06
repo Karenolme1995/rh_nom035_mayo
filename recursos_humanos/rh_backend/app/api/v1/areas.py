@@ -7,7 +7,7 @@ from app.dependencies.roles import require_role
 router = APIRouter(
     prefix="/areas",
     tags=["areas"],
-    dependencies=[Depends(require_role(1, 2))]
+    dependencies=[Depends(require_role(1, 2, 3))]
 )
 
 @router.get("")

@@ -1,9 +1,17 @@
+#app/api/v1/positions.py
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from pydantic import BaseModel, Field
 from app.dependencies.auth import get_current_user
 from app.core.db import get_db
+from app.dependencies.roles import require_role
 
-router = APIRouter(prefix="/positions", tags=["positions"])
+router = APIRouter(
+    prefix="/positions",
+    tags=["positions"],
+    dependencies=[Depends(require_role(1, 2, 3))]
+)
+
 
 
 class PositionCreate(BaseModel):
@@ -18,7 +26,7 @@ class PositionUpdate(BaseModel):
     active: int | None = Field(default=None, ge=0, le=1)
 
 
-@router.get("")
+@router.get("/")
 def list_positions(
     area_id: int | None = Query(None),
     q: str | None = Query(None, description="Búsqueda por nombre del puesto"),
@@ -57,8 +65,9 @@ def list_positions(
             ORDER BY a.name, p.name
         """
 
-        with db.cursor() as cur:
-            cur.execute(sql, params)
+       
+        with db.cursor(dictionary=True) as cur:
+            cur.execute(sql, tuple(params))
             rows = cur.fetchall()
 
         return rows
@@ -67,7 +76,7 @@ def list_positions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("", status_code=201)
+@router.post("/", status_code=201)
 def create_position(
     payload: PositionCreate,
     db=Depends(get_db),

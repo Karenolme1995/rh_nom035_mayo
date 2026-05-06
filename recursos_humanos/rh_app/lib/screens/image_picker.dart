@@ -1,15 +1,40 @@
-import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
-File? selectedImage;
+class ImagePickerScreen extends StatefulWidget {
+  @override
+  _ImagePickerScreenState createState() => _ImagePickerScreenState();
+}
 
-Future<void> pickImage() async {
-  final picker = ImagePicker();
-  final image = await picker.pickImage(source: ImageSource.gallery);
+class _ImagePickerScreenState extends State<ImagePickerScreen> {
+  File? selectedImage;
 
-  if (image != null) {
-    setState(() {
-      selectedImage = File(image.path);
-    });
+  Future<void> pickImage() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: ImageSource.gallery);
+
+    if (image != null) {
+      setState(() {
+        selectedImage = File(image.path);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Seleccionar imagen')),
+      body: Column(
+        children: [
+          ElevatedButton(
+            onPressed: pickImage,
+            child: Text('Seleccionar imagen'),
+          ),
+          if (selectedImage != null)
+            Image.file(selectedImage!),
+        ],
+      ),
+    );
   }
 }

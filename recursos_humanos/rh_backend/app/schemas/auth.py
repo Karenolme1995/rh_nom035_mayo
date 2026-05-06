@@ -9,10 +9,13 @@ class UserLogin(BaseModel):
 class LoginSchema(BaseModel):
     employee_number: str
     password: str
+    
 
 class ForgotPasswordSchema(BaseModel):
     employee_number: str
     email: EmailStr
+    contact: str | None = None
+
 
 class VerifyCodeSchema(BaseModel):
     employee_number: str
@@ -21,4 +24,9 @@ class VerifyCodeSchema(BaseModel):
 class ResetPasswordSchema(BaseModel):
     employee_number: str
     code: str
+    new_password: str
+
+
+class ChangePasswordSchema(BaseModel):
+    employee_number: str
     new_password: str

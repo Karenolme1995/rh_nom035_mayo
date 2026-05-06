@@ -17,7 +17,7 @@ from app.schemas.auth import (
     ResetPasswordSchema
 )
 
-from app.core.utils import generate_code  # si no existe, te digo cómo hacerlo
+from app.core.utils import generate_code  
 
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -26,8 +26,7 @@ security = HTTPBearer()
 
 
 def _is_sqlalchemy_session(db) -> bool:
-    # Session de SQLAlchemy tiene .execute y suele tener .commit también
-    # MySQLConnection NO tiene .execute, pero sí .cursor
+   
     return hasattr(db, "execute") and not hasattr(db, "cursor")
 
 
@@ -76,13 +75,13 @@ def login(data: LoginSchema, db: Session = Depends(get_db)):
     user = _fetchone(
         db,
         sql_sa="""
-            SELECT id, employee_number, name, password, role_id, area, position, plant, avatar
+            SELECT id, employee_number, name, password, role_id, area, position, plant, avatar,birthday,active
             FROM users
             WHERE employee_number = :emp AND active = 1
         """,
         params={"emp": emp},
         sql_mysql="""
-            SELECT id, employee_number, name, password, role_id, area, position, plant, avatar
+            SELECT id, employee_number, name, password, role_id, area, position, plant, avatar,birthday,active
             FROM users
             WHERE employee_number = %s AND active = 1
         """,
@@ -97,16 +96,13 @@ def login(data: LoginSchema, db: Session = Depends(get_db)):
 
     user_password = user.password if hasattr(user, "password") else user.get("password")
 
-    # DEBUG opcional (quita después)
-    # print("DEBUG emp:", emp)
-    # print("DEBUG hash prefix:", str(user_password)[:4])
-
     if not verify_password(pwd, user_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Empleado o contraseña incorrectos"
         )
 
+    
     user_id = user.id if hasattr(user, "id") else user.get("id")
     role_id = user.role_id if hasattr(user, "role_id") else user.get("role_id")
 
@@ -117,8 +113,18 @@ def login(data: LoginSchema, db: Session = Depends(get_db)):
 
     redis_client.setex(token, 1800, "active")
 
+    _execute(
+        db,
+        sql_sa="UPDATE users SET last_login = NOW() WHERE id = :uid",
+        params={"uid": user_id},
+        sql_mysql="UPDATE users SET last_login = NOW() WHERE id = %s",
+        args=(user_id,)
+    )
+    _commit(db)
+
     def _get(field):
         return getattr(user, field) if hasattr(user, field) else user.get(field)
+
 
     return {
         "access_token": token,
@@ -131,9 +137,12 @@ def login(data: LoginSchema, db: Session = Depends(get_db)):
             "area": _get("area"),
             "position": _get("position"),
             "plant": _get("plant"),
-            "avatar": _get("avatar")
+            "birthday": _get("birthday"), 
+            "avatar": _get("avatar"),
+            "last_login": _get("last_login"),
         }
     }
+
 
 
 # ---------------- LOGOUT ----------------
@@ -147,29 +156,36 @@ def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
 # -------- RECUPERAR CONTRASEÑA --------
 @router.post("/forgot-password")
 def forgot_password(data: ForgotPasswordSchema, db: Session = Depends(get_db)):
+    employee = (data.employee_number or "").strip()
+    contact = (data.contact or data.email or "").strip()
+
+    if not contact:
+        raise HTTPException(status_code=400, detail="Debes proporcionar correo o teléfono")
 
     user = _fetchone(
         db,
         sql_sa="""
-            SELECT id, email
+            SELECT id, email, phone
             FROM users
             WHERE employee_number = :emp AND active = 1
         """,
-        params={"emp": data.employee_number},
+        params={"emp": employee},
         sql_mysql="""
-            SELECT id, email
+            SELECT id, email, phone
             FROM users
             WHERE employee_number = %s AND active = 1
         """,
-        args=(data.employee_number,)
+        args=(employee,)
     )
 
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-    user_email = user.email if hasattr(user, "email") else user.get("email")
-    if user_email != data.email:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    user_email = (user.email if hasattr(user, "email") else user.get("email")) or ""
+    user_phone = (user.phone if hasattr(user, "phone") else user.get("phone")) or ""
+
+    if contact != user_email and contact != user_phone:
+        raise HTTPException(status_code=404, detail="Correo o teléfono no coincide")
 
     user_id = user.id if hasattr(user, "id") else user.get("id")
 
@@ -191,11 +207,12 @@ def forgot_password(data: ForgotPasswordSchema, db: Session = Depends(get_db)):
     )
     _commit(db)
 
-    # Aquí luego conectamos email
-    print("Código recuperación:", code)
+    if "@" in contact:
+        print(f"Enviar correo a {contact} con código {code}")
+    else:
+        print(f"Enviar SMS a {contact} con código {code}")
 
     return {"ok": True}
-
 
 # -------- VERIFICAR CÓDIGO --------
 @router.post("/verify-code")
